@@ -1,9 +1,11 @@
 from engine.evaluation.material import MaterialDifferenceEvaluation
 from engine.evaluation.mobility import evaluate_mobility_difference
 from engine.evaluation.piece_square import evaluate_piece_square_difference
+import chess
 
 MOBILITY_WEIGHT = 10
-PIECE_SQUARE_WEIGHT = 1
+PIECE_SQUARE_WEIGHT = 0.5
+
 
 material_evaluator = MaterialDifferenceEvaluation()
 

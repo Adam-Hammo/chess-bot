@@ -34,18 +34,26 @@ class MaterialDifferenceEvaluation:
             self.table = np.load(TABLE_PATH)
 
     def evaluate_material_difference(self,board):
-        return self.table[
-            len(board.pieces(chess.PAWN,chess.WHITE)),
-            len(board.pieces(chess.PAWN,chess.BLACK)),
-            len(board.pieces(chess.KNIGHT,chess.WHITE)),
-            len(board.pieces(chess.KNIGHT,chess.BLACK)),
-            len(board.pieces(chess.BISHOP,chess.WHITE)),
-            len(board.pieces(chess.BISHOP,chess.BLACK)),
-            len(board.pieces(chess.ROOK,chess.WHITE)),
-            len(board.pieces(chess.ROOK,chess.BLACK)),
-            len(board.pieces(chess.QUEEN,chess.WHITE)),
-            len(board.pieces(chess.QUEEN,chess.BLACK)),
-        ]
+        try :
+            return self.table[
+                len(board.pieces(chess.PAWN,chess.WHITE)),
+                len(board.pieces(chess.PAWN,chess.BLACK)),
+                len(board.pieces(chess.KNIGHT,chess.WHITE)),
+                len(board.pieces(chess.KNIGHT,chess.BLACK)),
+                len(board.pieces(chess.BISHOP,chess.WHITE)),
+                len(board.pieces(chess.BISHOP,chess.BLACK)),
+                len(board.pieces(chess.ROOK,chess.WHITE)),
+                len(board.pieces(chess.ROOK,chess.BLACK)),
+                len(board.pieces(chess.QUEEN,chess.WHITE)),
+                len(board.pieces(chess.QUEEN,chess.BLACK)),
+            ]
+        except IndexError :
+            # If we reach here this combination is not cached so we calc on the fly
+            return ((len(board.pieces(chess.PAWN,chess.WHITE))-len(board.pieces(chess.PAWN,chess.BLACK)))*WEIGHTS[0]
+             + (len(board.pieces(chess.KNIGHT,chess.WHITE))-len(board.pieces(chess.KNIGHT,chess.BLACK)))*WEIGHTS[1]
+             + (len(board.pieces(chess.BISHOP,chess.WHITE))-len(board.pieces(chess.BISHOP,chess.BLACK)))*WEIGHTS[2]
+             + (len(board.pieces(chess.ROOK,chess.WHITE))-len(board.pieces(chess.ROOK,chess.BLACK)))*WEIGHTS[3]
+             + (len(board.pieces(chess.QUEEN,chess.WHITE))-len(board.pieces(chess.QUEEN,chess.BLACK)))*WEIGHTS[4])
         
 
 if __name__ == '__main__' :

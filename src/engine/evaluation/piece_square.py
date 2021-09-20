@@ -96,4 +96,4 @@ def evaluate_piece_square_difference(board) :
         get_piece_square_value(board, chess.QUEEN, chess.BLACK) +
         get_piece_square_value(board, chess.KING, chess.BLACK)
     )
-    return white_points - black_points
+    return 1-white_points/black_points if black_points != 0 else 1
