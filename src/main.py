@@ -1,7 +1,16 @@
 import chess
-from evaluation import engine as EvaluationEngine
+import chess.svg
+from engine.engine import ChessEngine
 
 if __name__ == '__main__' :
     board = chess.Board()
-    EvaluationEngine.evaluate_board(board)
-    
+
+    engine = ChessEngine()
+
+    while not board.is_game_over():
+        engine_move = engine.evaluate_next_move(board)
+        board.push(engine_move)
+        print(board.unicode())
+        m = input("Move: ")
+        board.push(chess.Move.from_uci(m))
+        print(board.unicode())
