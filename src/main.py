@@ -5,10 +5,11 @@ from engine.engine import ChessEngine
 if __name__ == '__main__' :
     board = chess.Board()
 
-    engine = ChessEngine()
+    engine = ChessEngine(side=chess.WHITE)
 
     while not board.is_game_over():
         engine_move = engine.evaluate_next_move(board)
+        print("Bot plays: " + str(engine_move))
         board.push(engine_move)
         print(board.unicode())
         m = input("Move: ")

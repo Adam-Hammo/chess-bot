@@ -67,22 +67,33 @@ KING = np.array([
  20, 30, 10,  0,  0, 10, 30, 20
 ])
 
+ps_map = {chess.PAWN: PAWN, chess.KNIGHT: KNIGHT, chess.BISHOP: BISHOP, chess.ROOK: ROOK, chess.QUEEN: QUEEN, chess.KING: KING}
+
+def get_piece_square_value(board, piece, colour) :
+    square_set = board.pieces(piece, colour)
+    if len(square_set)==0 :
+        return 0
+    
+    if colour == chess.WHITE :
+        return sum(ps_map[piece][63-np.array(list(square_set))])
+    else :
+        return sum(ps_map[piece][np.array(list(square_set))])
 
 def evaluate_piece_square_difference(board) :
     white_points = (
-        sum(PAWN[63-np.array(list(board.pieces(chess.PAWN, chess.WHITE)))])
-      + sum(KNIGHT[63-np.array(list(board.pieces(chess.KNIGHT, chess.WHITE)))])
-      + sum(BISHOP[63-np.array(list(board.pieces(chess.BISHOP, chess.WHITE)))])
-      + sum(ROOK[63-np.array(list(board.pieces(chess.ROOK, chess.WHITE)))])
-      + sum(QUEEN[63-np.array(list(board.pieces(chess.QUEEN, chess.WHITE)))])
-      + sum(KING[63-np.array(list(board.pieces(chess.KING, chess.WHITE)))])
+        get_piece_square_value(board, chess.PAWN, chess.WHITE) +
+        get_piece_square_value(board, chess.KNIGHT, chess.WHITE) +
+        get_piece_square_value(board, chess.BISHOP, chess.WHITE) +
+        get_piece_square_value(board, chess.ROOK, chess.WHITE) +
+        get_piece_square_value(board, chess.QUEEN, chess.WHITE) +
+        get_piece_square_value(board, chess.KING, chess.WHITE)
     )
     black_points = (
-        sum(PAWN[np.array(list(board.pieces(chess.PAWN, chess.BLACK)))])
-      + sum(KNIGHT[np.array(list(board.pieces(chess.KNIGHT, chess.BLACK)))])
-      + sum(BISHOP[np.array(list(board.pieces(chess.BISHOP, chess.BLACK)))])
-      + sum(ROOK[np.array(list(board.pieces(chess.ROOK, chess.BLACK)))])
-      + sum(QUEEN[np.array(list(board.pieces(chess.QUEEN, chess.BLACK)))])
-      + sum(KING[np.array(list(board.pieces(chess.KING, chess.BLACK)))])
+        get_piece_square_value(board, chess.PAWN, chess.BLACK) +
+        get_piece_square_value(board, chess.KNIGHT, chess.BLACK) +
+        get_piece_square_value(board, chess.BISHOP, chess.BLACK) +
+        get_piece_square_value(board, chess.ROOK, chess.BLACK) +
+        get_piece_square_value(board, chess.QUEEN, chess.BLACK) +
+        get_piece_square_value(board, chess.KING, chess.BLACK)
     )
     return white_points - black_points

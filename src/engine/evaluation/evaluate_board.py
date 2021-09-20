@@ -15,6 +15,6 @@ def evaluate_board(board):
 
     piece_square_feature = evaluate_piece_square_difference(board)
 
-    print(f"Material: {material_feature}, mobility: {mobility_feature}, piece square: {piece_square_feature}")
+    # print(f"Material: {material_feature}, mobility: {mobility_feature}, piece square: {piece_square_feature}")
 
     return material_feature + mobility_feature + piece_square_feature
