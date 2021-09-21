@@ -12,8 +12,9 @@ class ChessEngine:
             'engine/database/openings/Baron.bin')
         self.phase = 0  # 0=opening, 1=midgame, 2=endgame
         self.side = side
-        self.time_per_move = 20
+        self.time_per_move = 600
         self.time = None
+        self.transposition_table = {}
         pass
 
     def calculate_next_move(self, board):
@@ -33,77 +34,59 @@ class ChessEngine:
         return move
 
     def perform_search(self, board):
+        # try returning move on timeout
         depth = 1
         move = None
+        print(f"Eval after 0-ply: {evaluate_board(board)}")
         while True :
             if self.side == chess.WHITE:
-                valid, proposed_move = self.alpha_beta_max(-math.inf, math.inf, chess.Move.null(), depth, board, force_move=move)
+                valid, proposed_move = self.alpha_beta_negamax(-math.inf, math.inf, chess.Move.null(), depth, board)
             else :
-                valid, proposed_move = self.alpha_beta_min(-math.inf, math.inf, chess.Move.null(), depth, board, force_move=move)
+                valid, proposed_move = self.alpha_beta_min(math.inf, -math.inf, chess.Move.null(), depth, board)
+            print(f"Eval after {depth}-ply: {valid} (proposed {proposed_move})")
             if valid is None :
                 return move, depth-1
             move = proposed_move
             depth += 1
 
-    # Perform alpha-beta max-min DFS 
+    # Perform alpha-beta negamax DFS 
 
-    def alpha_beta_max(self, alpha, beta, prev_move, depth_rem, board, force_move = None):
+    def cache(self, score, move, hash) :
+        self.transposition_table[hash] = score, move
+        return score, move
+
+    def alpha_beta_negamax(self, alpha, beta, prev_move, depth_rem, board) :
         if time.time() - self.time > self.time_per_move :
             return None, None
+
+        hash_tup = (chess.polyglot.zobrist_hash(board), depth_rem)
+        if (res:=self.transposition_table.get(hash_tup)) is not None :
+            return res
+
         if depth_rem == 0:
-            return self.quiesce(alpha,beta,board), board.peek()
+            return self.cache(self.quiesce(alpha,beta,board), board.peek(), hash_tup)
+
+        if board.is_checkmate() :
+            return self.cache(math.inf, prev_move, hash_tup)
+        if board.is_stalemate() :
+            return self.cache(0, prev_move, hash_tup)
+
         alpha_move = None
-        if board.is_checkmate() :
-            return -math.inf, prev_move
-        if board.is_stalemate() :
-            return 0, prev_move
-
-        legal_moves = list(board.legal_moves)
-        if force_move is not None :
-            legal_moves.remove(force_move)
-            legal_moves.insert(0,force_move)
-
-        for move in legal_moves:
-            board.push(move)
-            score, _ = self.alpha_beta_min(alpha, beta, move, depth_rem - 1, board)
-            if score is None :
-                return None, None
-            board.pop()
-            if score >= beta:
-                return beta, move
-            if score > alpha:
-                alpha = score
-                alpha_move = move
-        return alpha, alpha_move
-
-    def alpha_beta_min(self, alpha, beta, prev_move, depth_rem, board, force_move = None):
-        if time.time() - self.time > self.time_per_move :
-            return None, None
-        if depth_rem == 0:
-            return self.quiesce(alpha,beta,board), board.peek()
-        beta_move = None
-        if board.is_checkmate() :
-            return math.inf, prev_move
-        if board.is_stalemate() :
-            return 0, prev_move
-
-        legal_moves = list(board.legal_moves)
-        if force_move is not None :
-            legal_moves.remove(force_move)
-            legal_moves.insert(0,force_move)
 
         for move in board.legal_moves:
             board.push(move)
-            score, _ = self.alpha_beta_max(alpha, beta, move, depth_rem - 1, board)
+            score, _ = self.alpha_beta_negamax(-beta, -alpha, move, depth_rem - 1, board)
+            score = -score
+            board.pop()
             if score is None :
                 return None, None
-            board.pop()
-            if score <= alpha:
-                return alpha, move
-            if score < beta:
-                beta = score
-                beta_move = beta
-        return beta, beta_move
+            if score >= beta:
+                return self.cache(beta, move, hash_tup)
+            if score > alpha:
+                alpha = score
+                alpha_move = move
+        
+        return self.cache(alpha, alpha_move, hash_tup)
 
     def quiesce(self, alpha, beta, board) :
         # Simple application of quiesce function, just looks at the last moved piece
@@ -111,6 +94,7 @@ class ChessEngine:
         # Needs work
 
         stand_pat = evaluate_board(board)
+        # return stand_pat
         if stand_pat >= beta :
             return beta
         if alpha < stand_pat :
