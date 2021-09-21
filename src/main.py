@@ -4,7 +4,7 @@ from engine.engine import ChessEngine
 import time
 
 if __name__ == '__main__' :
-    board = chess.Board('r1b1kb1r/pp2ppp1/2n2n2/7p/Q1Pq4/8/PP3PPP/RNB1KBNR b KQkq - 0 7')
+    board = chess.Board('3r2k1/p6p/1qp3p1/8/QP2nnP1/1P3N2/4P2P/R3KBR1 w Q - 0 26')
 
     engine = ChessEngine(side=chess.WHITE)
 
