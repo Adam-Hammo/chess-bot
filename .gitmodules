@@ -1,0 +1,6 @@
+[submodule "lichess-bot"]
+	path = lichess-bot
+	url = https://github.com/ShailChoksi/lichess-bot.git
+[submodule "Gigantua"]
+	path = Gigantua
+	url = https://github.com/Gigantua/Gigantua.git
