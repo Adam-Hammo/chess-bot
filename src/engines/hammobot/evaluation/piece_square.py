@@ -137,8 +137,9 @@ mg_ps_map = {chess.PAWN: MG_PAWN, chess.KNIGHT: MG_KNIGHT, chess.BISHOP: MG_BISH
 
 eg_ps_map = {chess.PAWN: EG_PAWN, chess.KNIGHT: EG_KNIGHT, chess.BISHOP: EG_BISHOP, chess.ROOK: EG_ROOK, chess.QUEEN: EG_QUEEN, chess.KING: EG_KING}
 
-ps_map = [None]*32
+ps_map = [None]*33
 for n_pieces in range(32):
+    n_pieces+=1
     ps_map[n_pieces] = {}
     for pt in mg_ps_map.keys():
         eg_weight = min((32-n_pieces)/(32-10),1)
@@ -149,7 +150,6 @@ def get_piece_square_value(board, piece, colour, n_pieces) :
     square_set = board.pieces(piece, colour)
     if len(square_set)==0 :
         return 0
-    
     if colour == chess.WHITE :
         return sum(ps_map[n_pieces][piece][63-np.array(list(square_set))])
     else :

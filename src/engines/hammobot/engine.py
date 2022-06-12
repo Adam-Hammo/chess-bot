@@ -82,16 +82,16 @@ class StatefulBoard:
         moved_piece = self.board.piece_type_at(move.from_square)
         if promoted := move.promotion:
             if self.board.turn == chess.WHITE:
-                d_piece_square_diff += ps_map[self.n_pieces][promoted][63-move.to_square]
-                d_piece_square_diff -= ps_map[self.n_pieces][moved_piece][63-move.from_square]
+                d_piece_square_diff += ps_map[self.n_pieces][promoted][move.to_square^56]
+                d_piece_square_diff -= ps_map[self.n_pieces][moved_piece][move.from_square^56]
             else:
                 d_piece_square_diff -= ps_map[self.n_pieces][promoted][move.to_square]
                 d_piece_square_diff += ps_map[self.n_pieces][moved_piece][move.from_square]
         else:
             ps_table = ps_map[self.n_pieces][moved_piece]
             if self.board.turn == chess.WHITE:
-                d_piece_square_diff += ps_table[63-move.to_square]
-                d_piece_square_diff -= ps_table[63-move.from_square]
+                d_piece_square_diff += ps_table[move.to_square^56]
+                d_piece_square_diff -= ps_table[move.from_square^56]
             else:
                 d_piece_square_diff -= ps_table[move.to_square]
                 d_piece_square_diff += ps_table[move.from_square]
@@ -102,7 +102,7 @@ class StatefulBoard:
                 d_piece_square_diff += ps_map[self.n_pieces][captured][move.to_square]
             else:
                 # White piece captured - subtract the diff
-                d_piece_square_diff -= ps_map[self.n_pieces][captured][63-move.to_square]
+                d_piece_square_diff -= ps_map[self.n_pieces][captured][move.to_square^56]
 
         self.piece_square_diff += d_piece_square_diff
         self.d_piece_square_diffs[self.depth] = d_piece_square_diff

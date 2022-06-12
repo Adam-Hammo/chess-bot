@@ -9,7 +9,7 @@ class Limit:
         self.black_clock = 120
 
 if __name__ == '__main__' :
-    board = chess.Board('r3r1k1/6pp/p5P1/5p1Q/1pPpqN2/1P6/P6P/5RK1 b - - 0 28')
+    board = chess.Board('rnbqkb1r/pp2pppp/5n2/1Bpp4/8/4PN1P/PPPP1PP1/RNBQK2R b KQkq - 1 4')
 
     engine = ChessEngine()
     engine_move = engine.search(board, Limit())
