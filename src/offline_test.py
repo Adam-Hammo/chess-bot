@@ -5,11 +5,11 @@ import time
 
 class Limit:
     def __init__(self):
-        self.white_clock = 120
-        self.black_clock = 120
+        self.white_clock = 300
+        self.black_clock = 300
 
 if __name__ == '__main__' :
-    board = chess.Board('r1bqkb1r/pp2pppp/5n2/2ppn3/3P4/2P3P1/PP3P1P/RNBQKBNR b KQkq - 0 6')
+    board = chess.Board('r2q1rk1/1Q2bppp/1p1p4/p3p3/4P3/5N2/PPP2PPP/2R2RK1 b - - 1 16')
 
     engine = ChessEngine()
     engine_move = engine.search(board, Limit())

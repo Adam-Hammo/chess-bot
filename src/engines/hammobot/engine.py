@@ -1,10 +1,10 @@
 from engines.hammobot.evaluation.material import MaterialDifferenceEvaluation, WEIGHTS as material_weights
+from engines.hammobot.evaluation.mobility import evaluate_mobility_difference
 from engines.hammobot.evaluation.piece_square import evaluate_piece_square_difference, ps_map
 import chess.polyglot
 import chess.syzygy
 import chess
 import time
-from multiprocessing import Pool
 
 CHECKMATE_SCORE = 100000
 ENDGAME_FACTOR = 1000
@@ -40,13 +40,25 @@ class StatefulBoard:
         self.is_endgame = False
         self.transposition_table = {}
 
-    def evaluate(self):
+    def evaluate(self, draw_pos, n_draw_pos, depth):
+        if n_draw_pos == 2:
+            z_hash = chess.polyglot.zobrist_hash(self.board)
+            if z_hash == draw_pos:
+                # 3-pos repetition
+                return 0
+                
         if o:=self.board.outcome():
             if o.termination == chess.Termination.CHECKMATE:
                 return -CHECKMATE_SCORE + self.depth
             # else drawn
             return 0
-        score = (self.material_diff + 0.75*self.piece_square_diff)*(1 if self.board.turn == chess.WHITE else -1)
+
+        if depth <= 3:
+            mobility = evaluate_mobility_difference(self.board)
+        else:
+            mobility = 0
+
+        score = (self.material_diff + 0.75*self.piece_square_diff + 100*mobility)*(1 if self.board.turn == chess.WHITE else -1)
         if self.is_endgame:
             pass
             # too slow for now
@@ -130,6 +142,8 @@ class ChessEngine:
         self.transposition_table = {}
         self.nodes = 0
         self.prunes = 0
+        self.draw_pos = None
+        self.n_draw_pos = 0
 
     def search(self, board, time_limit):
         if not self.side:
@@ -144,172 +158,164 @@ class ChessEngine:
 
         if self.mode == "TIME":
             if self.side == chess.WHITE:
-                self.time_per_move = time_limit.white_clock/20
+                if time_limit.white_clock == 0:
+                    self.time_per_move = 0.1
+                else:
+                    self.time_per_move = time_limit.white_clock/30
             else:
-                self.time_per_move = time_limit.black_clock/20
+                if time_limit.black_clock == 0:
+                    self.time_per_move = 0.1
+                else:
+                    self.time_per_move = time_limit.black_clock/30
 
         self.time = time.time()
         self.nodes = 0
 
-        args = []
-        moves = list(board.legal_moves)
-        for move in moves:
-            board.push(move)
-            if board.is_checkmate():
-                return move
-            args.append([board.fen(), self.mode, self.time_per_move, self.time])
-            board.pop()
+        stateful_board = StatefulBoard(board)
+        if len(board.piece_map()) <= 7:
+            self.phase = 2
+            stateful_board.is_endgame = True
+        move, depth = self.perform_search(stateful_board)
 
-        with Pool(len(args)) as p:
-            print(f"Searching {len(args)} trees in parallel for {self.time_per_move}s")
-            res = p.starmap(perform_search, args)
-
-        scores = []
-        depth = 0
-        for i,r in enumerate(res):
-            # print(moves[i], r[0], r[2], r[2]*(1 if r[0]%2==1 else -1))
-            depth = max(depth, r[0])
-            self.nodes += r[1]
-            scores.append(r[2])
-
-        move = moves[scores.index(min(scores))]
+        board.push(move)
+        z_hash = chess.polyglot.zobrist_hash(board)
+        if z_hash == self.draw_pos:
+            self.n_draw_pos+=1
+        else:
+            self.n_draw_pos=0
+            self.draw_pos = z_hash
 
         print(f"""
-Searched {depth}-ply
-    {self.nodes} board evaluations performed in {round(time.time()-self.time)}s ({round(self.nodes/(time.time()-self.time))} nodes/sec).)
+Searched {depth}-ply, {self.nodes} nodes
+    (Pruned {self.prunes} trees)
     Playing {move}
         """)
 
         return move
 
-def perform_search(fen, mode, time_per_move, time_start):
-    board = chess.Board(fen)
-    stateful_board = StatefulBoard(board)
-    if len(board.piece_map()) <= 7:
-        stateful_board.is_endgame = True
-        phase = 2
-    else:
-        phase = 1
+    def perform_search(self, stateful_board):
+        # try returning move on timeout
+        if self.mode == 'TIME' :
+            print(f"Searching for {self.time_per_move}s...")
 
-    # try returning move on timeout
-    if mode == 'TIME' :
+            self.depth = 1
+            move = None
+            seq = None
 
-        depth = 1
-        move = None
-        seq = None
-        nodes = 0
-        score = None
+            while True :
+                # Only timeout on 2nd or more layer (helps in very tight situations)
+                valid, seq = self.alpha_beta_negamax(-CHECKMATE_SCORE, CHECKMATE_SCORE, chess.Move.null(), self.depth, stateful_board, [None]* self.depth, force_sequence=seq, timeout=(self.depth!=1))
+                if valid is None :
+                    print(f"{self.nodes} board evaluations performed ({round(self.nodes/self.time_per_move)}nodes/sec).")
+                    return move, self.depth-1
 
-        while True :
-            # Only timeout on 2nd or more layer (helps in very tight situations)
-            valid, seq, nodes = alpha_beta_negamax(-CHECKMATE_SCORE, CHECKMATE_SCORE, depth, stateful_board, [None]* depth, depth, time_per_move, time_start, phase, nodes, force_sequence=seq, timeout=(depth!=1))
-            if valid is None :
-                return depth, nodes, score, move
+                proposed_move = seq[0]
+                print(seq)
+                print(f"Eval after {self.depth}-ply: {valid} (proposed {proposed_move})")
+                move = proposed_move
 
-            score = valid
+                if abs(valid-CHECKMATE_SCORE)<100:
+                    print(f"Checkmate in {self.depth}")
+                    return move, self.depth
+                    
+                if abs(valid+CHECKMATE_SCORE)<100:
+                    print(f"Checkmate in {self.depth}")
+                    return move, self.depth
+
+                self.depth += 1
+        
+        elif self.mode == 'DEPTH' :
+            valid, seq = self.alpha_beta_negamax(-CHECKMATE_SCORE, CHECKMATE_SCORE, chess.Move.null(), self.depth, stateful_board, [None]*self.depth)
             proposed_move = seq[0]
+            print(seq)
+            print(f"Eval after {self.depth}-ply: {valid} (proposed {proposed_move})")
             move = proposed_move
 
-            if abs(valid-CHECKMATE_SCORE)<100:
-                print(f"Checkmate in {depth+1}")
-                return depth+1, nodes, score
-                
-            if abs(valid+CHECKMATE_SCORE)<100:
-                print(f"Checkmate in {depth+1}")
-                return depth+1, nodes, score
-
-            depth += 1
-    
-    elif mode == 'DEPTH' :
-        valid, seq = alpha_beta_negamax(-CHECKMATE_SCORE, CHECKMATE_SCORE, depth, stateful_board, [None]*depth)
-        proposed_move = seq[0]
-        print(seq)
-        print(f"Eval after {depth}-ply: {valid} (proposed {proposed_move})")
-        move = proposed_move
-
-        return move, depth, valid
-    
-
-# Perform alpha-beta negamax DFS 
-
-def alpha_beta_negamax(alpha, beta, depth_rem, stateful_board, sequence, depth, time_per_move, time_start, phase, nodes, force_sequence = None, timeout = False) :
-    nodes+=1
-    new_sequence = [None]*(depth_rem-1)
-
-    if timeout and (time.time() - time_start > time_per_move) :
-        return None, None, nodes
-
-    if depth_rem == 0 :
-        return quiesce(alpha, beta, stateful_board, phase), sequence, nodes
-
-    legal_moves = list(stateful_board.board.legal_moves)
-    if force_sequence is not None :
-        # check the previous best path first
-        try :
-            force_move = force_sequence[0]
-            legal_moves.remove(force_move)
-            legal_moves.insert(0,force_move)
-        except ValueError :
-            force_move = None
-    else :
-        force_move = None
-
-    for move in legal_moves:
-
-        # futility pruning
-        if depth == depth_rem:
-            if not stateful_board.board.is_check() and stateful_board.evaluate() + FUTILITY_THRESHOLD < alpha:
-                continue
-
-        stateful_board.move(move)
-        if force_move is not None and len(force_sequence) != 1 :
-            score, new_sequence, nodes = alpha_beta_negamax(-beta, -alpha, depth_rem - 1, stateful_board, new_sequence, depth, time_per_move, time_start, phase, nodes, force_sequence=force_sequence[1:], timeout=timeout)
-            force_move = None
-        else : 
-            score, new_sequence, nodes = alpha_beta_negamax(-beta, -alpha, depth_rem - 1, stateful_board, new_sequence, depth, time_per_move, time_start, phase, nodes, timeout=timeout)
-        stateful_board.undo_move()
-        if score is None :
-            return None, None, nodes
-        score *= -1
-        if score >= beta:
-            return beta, sequence, nodes
-        if score > alpha:
-            alpha = score
-            sequence[0] = move
-            sequence[1:] = new_sequence
-
-    return alpha, sequence, nodes
-
-def quiesce(alpha, beta, stateful_board, phase) :
-    # Simple application of quiesce function, just looks at the last moved piece
-    # Basically fixes up long trading sequences
-    # Needs work
-    stand_pat = stateful_board.evaluate()
-
-    if stand_pat >= beta :
-        return stand_pat
-    if alpha < stand_pat :
-        alpha = stand_pat
-    prev_move = stateful_board.board.peek()
-    for attacker in stateful_board.board.attackers(stateful_board.board.turn, prev_move.to_square) :
-        try :
-            attacking_move = stateful_board.board.find_move(attacker, prev_move.to_square)
-        except ValueError :
-            # piece is pinned
-            continue
-        stateful_board.move(attacking_move)
-        score = -quiesce(-beta,-alpha,stateful_board,phase)
-        stateful_board.undo_move()
+            return move, self.depth
         
-        if score >= beta :
-            return score
 
-        # Delta pruning
-        if phase != 2:
-            if score + FUTILITY_THRESHOLD < alpha:
-                return alpha
+    # Perform alpha-beta negamax DFS 
 
-        if score > alpha :
-            alpha = score
+    def alpha_beta_negamax(self, alpha, beta, prev_move, depth_rem, stateful_board, sequence, force_sequence = None, timeout = False) :
+        self.nodes+=1
+        new_sequence = [None]*(depth_rem-1)
 
-    return alpha
+        if timeout and (time.time() - self.time > self.time_per_move) :
+            return None, None
+
+        if depth_rem == 0 :
+            return self.quiesce(alpha, beta, stateful_board, self.depth - depth_rem), sequence
+
+        legal_moves = list(stateful_board.board.legal_moves)
+        if force_sequence is not None :
+            # check the previous best path first
+            try :
+                force_move = force_sequence[0]
+                legal_moves.remove(force_move)
+                legal_moves.insert(0,force_move)
+            except ValueError :
+                force_move = None
+        else :
+            force_move = None
+
+        for move in legal_moves:
+
+            # futility pruning
+            if self.depth == depth_rem:
+                if not stateful_board.board.is_check() and stateful_board.evaluate(self.draw_pos, self.n_draw_pos, self.depth - depth_rem) + FUTILITY_THRESHOLD < alpha:
+                    self.prunes+=1
+                    continue
+
+            stateful_board.move(move)
+            if force_move is not None and len(force_sequence) != 1 :
+                score, new_sequence = self.alpha_beta_negamax(-beta, -alpha, move, depth_rem - 1, stateful_board, new_sequence, force_sequence=force_sequence[1:], timeout=timeout)
+                force_move = None
+            else : 
+                score, new_sequence = self.alpha_beta_negamax(-beta, -alpha, move, depth_rem - 1, stateful_board, new_sequence, timeout=timeout)
+            stateful_board.undo_move()
+            if score is None :
+                return None, None
+            score *= -1
+            if score >= beta:
+                return beta, sequence
+            if score > alpha:
+                alpha = score
+                sequence[0] = move
+                sequence[1:] = new_sequence
+
+        return alpha, sequence
+
+    def quiesce(self, alpha, beta, stateful_board, depth) :
+        # Simple application of quiesce function, just looks at the last moved piece
+        # Basically fixes up long trading sequences
+        # Needs work
+        stand_pat = stateful_board.evaluate(self.draw_pos, self.n_draw_pos, depth)
+
+        if stand_pat >= beta :
+            return stand_pat
+        if alpha < stand_pat :
+            alpha = stand_pat
+        prev_move = stateful_board.board.peek()
+        for attacker in stateful_board.board.attackers(stateful_board.board.turn, prev_move.to_square) :
+            try :
+                attacking_move = stateful_board.board.find_move(attacker, prev_move.to_square)
+            except ValueError :
+                # piece is pinned
+                continue
+            stateful_board.move(attacking_move)
+            score = -self.quiesce(-beta,-alpha,stateful_board, depth+1)
+            stateful_board.undo_move()
+            
+            if score >= beta :
+                return score
+
+            # Delta pruning
+            if self.phase != 2:
+                if score + FUTILITY_THRESHOLD < alpha:
+                    self.prunes+=1
+                    return alpha
+
+            if score > alpha :
+                alpha = score
+
+        return alpha
