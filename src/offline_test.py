@@ -9,10 +9,11 @@ class Limit:
         self.black_clock = 120
 
 if __name__ == '__main__' :
-    board = chess.Board('rnbqkb1r/pp2pppp/5n2/1Bpp4/8/4PN1P/PPPP1PP1/RNBQK2R b KQkq - 1 4')
+    board = chess.Board('r1bqkb1r/pp2pppp/5n2/2ppn3/3P4/2P3P1/PP3P1P/RNBQKBNR b KQkq - 0 6')
 
     engine = ChessEngine()
     engine_move = engine.search(board, Limit())
+    print(engine_move)
     # while not board.is_game_over():
     #     t = time.time()
     #     engine_move = engine.search(board)
