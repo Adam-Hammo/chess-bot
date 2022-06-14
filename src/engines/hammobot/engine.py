@@ -58,7 +58,7 @@ class StatefulBoard:
         else:
             mobility = 0
 
-        score = (self.material_diff + 0.75*self.piece_square_diff + 100*mobility)*(1 if self.board.turn == chess.WHITE else -1)
+        score = (self.material_diff + 0.75*self.piece_square_diff + 4*mobility)*(1 if self.board.turn == chess.WHITE else -1)
         if self.is_endgame:
             pass
             # too slow for now
